@@ -1,0 +1,57 @@
+# Codemagic: connect this repo at codemagic.io, then start either workflow (or push to main).
+# Produces an Android APK and an unsigned iPhone IPA (install the IPA with Sideloadly).
+workflows:
+  android-apk:
+    name: BookVoice Android APK
+    instance_type: linux_x2
+    max_build_duration: 60
+    environment:
+      node: 22
+      java: 17
+    triggering:
+      events: [push]
+      branch_patterns:
+        - pattern: main
+    scripts:
+      - name: Install
+        script: npm ci
+      - name: Generate native project
+        script: npx expo prebuild --platform android --clean --no-install
+      - name: Build release APK (signed with the default debug key, fine for sideloading)
+        script: cd android && ./gradlew assembleRelease --no-daemon
+      - name: Rename
+        script: cp android/app/build/outputs/apk/release/app-release.apk BookVoice.apk
+    artifacts:
+      - BookVoice.apk
+
+  ios-unsigned:
+    name: BookVoice iPhone IPA (unsigned)
+    instance_type: mac_mini_m2
+    max_build_duration: 90
+    environment:
+      node: 22
+      xcode: latest
+      cocoapods: default
+    triggering:
+      events: [push]
+      branch_patterns:
+        - pattern: main
+    scripts:
+      - name: Install
+        script: npm ci
+      - name: Generate native project + pods
+        script: npx expo prebuild --platform ios --clean
+      - name: Build unsigned app
+        script: |
+          set -eo pipefail
+          cd ios
+          WS=$(ls -d *.xcworkspace | head -1)
+          SCHEME="${WS%.xcworkspace}"
+          xcodebuild -workspace "$WS" -scheme "$SCHEME" -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" | tail -60
+          APP=$(ls -d build/Build/Products/Release-iphoneos/*.app | head -1)
+          rm -rf Payload && mkdir Payload && cp -R "$APP" Payload/
+          zip -qry ../BookVoice-unsigned.ipa Payload
+    artifacts:
+      - BookVoice-unsigned.ipa

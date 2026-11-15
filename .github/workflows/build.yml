@@ -1,0 +1,48 @@
+name: Build APK + IPA
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - run: npm ci
+      - run: npx expo prebuild --platform android --clean --no-install
+      - name: Gradle release build (signed with the default debug key — fine for sideloading)
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon
+      - run: cp android/app/build/outputs/apk/release/app-release.apk BookVoice.apk
+      - uses: actions/upload-artifact@v4
+        with: { name: BookVoice-android, path: BookVoice.apk }
+
+  ios:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npx expo prebuild --platform ios --clean
+      - name: Build unsigned app (Sideloadly signs it with your Apple ID)
+        run: |
+          set -eo pipefail
+          cd ios
+          WS=$(ls -d *.xcworkspace | head -1)
+          SCHEME="${WS%.xcworkspace}"
+          xcodebuild -workspace "$WS" -scheme "$SCHEME" -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" | tail -40
+          APP=$(ls -d build/Build/Products/Release-iphoneos/*.app | head -1)
+          mkdir -p Payload && cp -R "$APP" Payload/
+          zip -qry ../BookVoice-unsigned.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with: { name: BookVoice-ios, path: BookVoice-unsigned.ipa }
