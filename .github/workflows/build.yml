@@ -1,5 +1,8 @@
 name: Build APK + IPA
 
+permissions:
+  contents: write
+
 on:
   push:
     branches: [main]
@@ -22,6 +25,13 @@ jobs:
       - run: cp android/app/build/outputs/apk/release/app-release.apk BookVoice.apk
       - uses: actions/upload-artifact@v4
         with: { name: BookVoice-android, path: BookVoice.apk }
+      - name: Publish to release (download link for your phone)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: BookVoice build ${{ github.run_number }}
+          make_latest: true
+          files: BookVoice.apk
 
   ios:
     runs-on: macos-26
@@ -49,6 +59,13 @@ jobs:
           zip -qry ../BookVoice-unsigned.ipa Payload
       - uses: actions/upload-artifact@v4
         with: { name: BookVoice-ios, path: BookVoice-unsigned.ipa }
+      - name: Publish to release (download link for your phone)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: BookVoice build ${{ github.run_number }}
+          make_latest: true
+          files: BookVoice-unsigned.ipa
       - uses: actions/upload-artifact@v4
         if: failure()
         with: { name: ios-build-log, path: xcodebuild.log }

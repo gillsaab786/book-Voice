@@ -4,6 +4,10 @@ import { Book } from './types';
 
 export const SKIP_SEC = 40;
 
+/** Sleep timer: stop after N minutes, after N chapters (1 = end of this chapter), or at the end of the book. */
+export type SleepMode = { kind: 'minutes'; n: number } | { kind: 'chapters'; n: number } | { kind: 'book' } | null;
+const FADE_SEC = 30;
+
 export type PlayState = {
   book?: Book;
   chapter: number;
@@ -26,8 +30,10 @@ class Playback {
   private listeners = new Set<(s: PlayState) => void>();
   private pendingSeek: number | null = null;
   private lastSave = 0;
-  private sleepTimer: ReturnType<typeof setTimeout> | null = null;
-  private sleepAtChapterEnd = false;
+  private sleepTick: ReturnType<typeof setInterval> | null = null;
+  private sleepEndsAt = 0; // ms timestamp for minute mode
+  private chaptersLeft = 0; // chapter mode
+  private sleepMode: SleepMode = null;
   private modeSet = false;
   state: PlayState = { chapter: -1, playing: false, time: 0, duration: 0, rate: 1 };
 
@@ -182,17 +188,56 @@ class Playback {
     this.pl.skipTo(idx);
   }
 
-  setSleep(minutes: number | 'chapter' | null) {
-    if (this.sleepTimer) clearTimeout(this.sleepTimer);
-    this.sleepTimer = null;
-    this.sleepAtChapterEnd = minutes === 'chapter';
-    if (typeof minutes === 'number') {
-      this.sleepTimer = setTimeout(() => {
-        this.pause();
-        this.emit({ sleepLabel: undefined });
-      }, minutes * 60e3);
+  setSleep(mode: SleepMode) {
+    if (this.sleepTick) clearInterval(this.sleepTick);
+    this.sleepTick = null;
+    this.sleepMode = mode;
+    if (this.pl) this.pl.volume = 1;
+    if (mode?.kind === 'minutes') {
+      this.sleepEndsAt = Date.now() + mode.n * 60e3;
+      // gentle fade over the last 30 s, then stop — like falling asleep to someone reading
+      this.sleepTick = setInterval(() => this.minuteTick(), 1000);
+    } else if (mode?.kind === 'chapters') {
+      this.chaptersLeft = mode.n;
     }
-    this.emit({ sleepLabel: minutes === null ? undefined : minutes === 'chapter' ? 'End of chapter' : `${minutes} min` });
+    this.updateSleepLabel();
+  }
+
+  private minuteTick() {
+    if (!this.state.playing) {
+      // paused: push the deadline back so the timer only counts listening time
+      this.sleepEndsAt += 1000;
+      return;
+    }
+    const left = (this.sleepEndsAt - Date.now()) / 1000;
+    if (left <= 0) return this.sleepNow();
+    if (this.pl) this.pl.volume = left < FADE_SEC ? Math.max(0.05, left / FADE_SEC) : 1;
+    if (Math.round(left) % 15 === 0) this.updateSleepLabel();
+  }
+
+  private sleepNow() {
+    if (this.sleepTick) clearInterval(this.sleepTick);
+    this.sleepTick = null;
+    this.sleepMode = null;
+    this.pl?.pause();
+    if (this.pl) this.pl.volume = 1;
+    // rewind a little so you pick up from something you remember hearing
+    void this.seekBy(-20);
+    this.emit({ sleepLabel: undefined, playing: false });
+    void this.savePosition();
+  }
+
+  private updateSleepLabel() {
+    const m = this.sleepMode;
+    let label: string | undefined;
+    if (m?.kind === 'minutes') label = `${Math.max(1, Math.ceil((this.sleepEndsAt - Date.now()) / 60e3))} min left`;
+    else if (m?.kind === 'chapters') label = this.chaptersLeft === 1 ? 'End of chapter' : `${this.chaptersLeft} chapters left`;
+    else if (m?.kind === 'book') label = 'End of book';
+    this.emit({ sleepLabel: label });
+  }
+
+  get sleep(): SleepMode {
+    return this.sleepMode;
   }
 
   async savePosition() {
@@ -209,11 +254,16 @@ class Playback {
   private onTrack(currentIndex: number, previousIndex: number) {
     const chapter = this.map[currentIndex];
     if (chapter === undefined || !this.state.book) return;
-    if (this.sleepAtChapterEnd && currentIndex === previousIndex + 1) {
-      this.sleepAtChapterEnd = false;
-      this.pl?.pause();
-      void this.pl?.seekTo(0);
-      this.emit({ sleepLabel: undefined });
+    if (this.sleepMode?.kind === 'chapters' && currentIndex === previousIndex + 1) {
+      this.chaptersLeft--;
+      if (this.chaptersLeft <= 0) {
+        // stop at the very start of the next chapter, so tomorrow begins cleanly
+        this.sleepMode = null;
+        this.pl?.pause();
+        this.pendingSeek = null;
+        void this.pl?.seekTo(0);
+        this.emit({ sleepLabel: undefined, playing: false });
+      } else this.updateSleepLabel();
     }
     try {
       this.pl?.updateLockScreenMetadata(this.meta(this.state.book, chapter));
@@ -234,6 +284,8 @@ class Playback {
     this.emit({ playing: st.playing, time: st.currentTime, duration: st.duration || this.state.duration, chapter });
     if (Date.now() - this.lastSave > 5000 && st.playing) void this.savePosition();
     if (st.didJustFinish && st.currentIndex === this.map.length - 1) {
+      // end of everything recorded so far (also the "End of book" sleep option)
+      if (this.sleepMode?.kind === 'book' || this.sleepMode?.kind === 'chapters') this.setSleep(null);
       this.emit({ playing: false });
       void this.savePosition();
     }

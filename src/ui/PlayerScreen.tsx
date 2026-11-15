@@ -11,17 +11,17 @@ import { playback, SKIP_SEC } from '../lib/playback';
 import { usePlayback } from './hooks';
 import { C, Dim, Header } from './kit';
 import { ReadAlong } from './ReadAlong';
+import { SleepPanel } from './SleepPanel';
 
 const RATES = [0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
-const SLEEP: (number | 'chapter' | null)[] = [null, 15, 30, 45, 60, 'chapter'];
 
 export function PlayerScreen(p: { onBack: () => void; openText: (bookId: string, i: number) => void }) {
   const st = usePlayback();
   const insets = useSafeAreaInsets();
   const [w, setW] = useState(1);
-  const [sleepIdx, setSleepIdx] = useState(0);
   const [cfg, setCfg] = useState<Settings | null>(null);
   const [showLook, setShowLook] = useState(false);
+  const [showSleep, setShowSleep] = useState(false);
   const [, tick] = useState(0);
   useEffect(() => void loadSettings().then(setCfg), []);
   // re-check auto theme every minute (switches to OLED Night at 8 pm)
@@ -65,11 +65,6 @@ export function PlayerScreen(p: { onBack: () => void; openText: (bookId: string,
     const i = RATES.findIndex((r) => Math.abs(r - st.rate) < 0.01);
     void playback.setRate(RATES[(i + 1) % RATES.length]);
   };
-  const cycleSleep = () => {
-    const n = (sleepIdx + 1) % SLEEP.length;
-    setSleepIdx(n);
-    playback.setSleep(SLEEP[n]);
-  };
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.bg, paddingTop: insets.top, paddingBottom: insets.bottom }}>
@@ -102,6 +97,7 @@ export function PlayerScreen(p: { onBack: () => void; openText: (bookId: string,
         onDoubleTap={(side) => playback.seekBy(side === 'left' ? -SKIP_SEC : SKIP_SEC)}
       />
 
+      {showSleep ? <SleepPanel theme={theme} onDone={() => setShowSleep(false)} /> : null}
       {showLook ? (
         <View style={{ backgroundColor: theme.panel, borderTopWidth: 1, borderColor: theme.line, padding: 14 }}>
           <Text style={{ color: theme.panelText, fontWeight: '700', marginBottom: 8 }}>Reading theme</Text>
@@ -152,7 +148,7 @@ export function PlayerScreen(p: { onBack: () => void; openText: (bookId: string,
         </View>
         <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 10, marginTop: 6 }}>
           <Pill label={`${st.rate}×`} onPress={cycleRate} on={st.rate !== 1} />
-          <Pill label={st.sleepLabel ? `☾ ${st.sleepLabel}` : '☾ Sleep'} onPress={cycleSleep} on={!!st.sleepLabel} />
+          <Pill label={st.sleepLabel ? `☾ ${st.sleepLabel}` : '☾ Sleep'} onPress={() => { setShowSleep((v) => !v); setShowLook(false); }} on={!!st.sleepLabel || showSleep} />
           <Pill label="Book text" onPress={() => p.openText(st.book!.id, st.chapter)} />
         </View>
         <Dim style={{ textAlign: 'center', fontSize: 11, marginTop: 8, color: theme.panelText, opacity: 0.5 }}>Double-tap left or right of the page to jump {SKIP_SEC}s · tap a sentence to play from it</Dim>

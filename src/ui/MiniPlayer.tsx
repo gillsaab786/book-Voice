@@ -15,7 +15,7 @@ export function MiniPlayer({ onOpen }: { onOpen: () => void }) {
       <View style={{ flexDirection: 'row', alignItems: 'center', padding: 12 }}>
         <View style={{ flex: 1 }}>
           <Text numberOfLines={1} style={{ color: C.text, fontWeight: '700' }}>{ch?.title}</Text>
-          <Text numberOfLines={1} style={{ color: C.dim, fontSize: 12 }}>{p.playing ? p.book.title : `Paused · ${formatDuration(p.time)} · tap ▶ to continue`}</Text>
+          <Text numberOfLines={1} style={{ color: C.dim, fontSize: 12 }}>{p.playing ? (p.sleepLabel ? `☾ ${p.sleepLabel} · ${p.book.title}` : p.book.title) : `Paused · ${formatDuration(p.time)} · tap ▶ to continue`}</Text>
         </View>
         <Pressable onPress={() => playback.seekBy(-SKIP_SEC)} hitSlop={10} style={{ paddingHorizontal: 10 }}>
           <Text style={{ color: C.text, fontSize: 15 }}>⟲{SKIP_SEC}</Text>
