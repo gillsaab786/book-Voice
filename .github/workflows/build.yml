@@ -24,12 +24,14 @@ jobs:
         with: { name: BookVoice-android, path: BookVoice.apk }
 
   ios:
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - run: npm ci
+      - name: Show Xcode
+        run: xcodebuild -version && ls /Applications | grep -i xcode
       - run: npx expo prebuild --platform ios --clean
       - name: Build unsigned app (Sideloadly signs it with your Apple ID)
         run: |
@@ -40,9 +42,13 @@ jobs:
           xcodebuild -workspace "$WS" -scheme "$SCHEME" -configuration Release \
             -sdk iphoneos -destination 'generic/platform=iOS' \
             -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" | tail -40
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" > ../xcodebuild.log 2>&1 || {
+              grep -n -E "error:|Error:|fatal|BUILD FAILED|exited with|No such|not found" ../xcodebuild.log | head -80; tail -80 ../xcodebuild.log; exit 1; }
           APP=$(ls -d build/Build/Products/Release-iphoneos/*.app | head -1)
           mkdir -p Payload && cp -R "$APP" Payload/
           zip -qry ../BookVoice-unsigned.ipa Payload
       - uses: actions/upload-artifact@v4
         with: { name: BookVoice-ios, path: BookVoice-unsigned.ipa }
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with: { name: ios-build-log, path: xcodebuild.log }
