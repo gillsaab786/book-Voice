@@ -1,6 +1,7 @@
 import { AudioPlaylist, AudioPlaylistStatus, createAudioPlaylist, setAudioModeAsync } from 'expo-audio';
 import { chapterAudioFile, loadBook, loadSettings, onBookSaved, saveBook, saveSettings } from './storage';
 import { Book } from './types';
+import { listening } from './listening';
 
 export const SKIP_SEC = 40;
 
@@ -16,6 +17,8 @@ export type PlayState = {
   duration: number;
   rate: number;
   sleepLabel?: string;
+  /** finished what's recorded; the next chapter plays as soon as it's converted */
+  waiting?: boolean;
 };
 
 /**
@@ -35,6 +38,8 @@ class Playback {
   private chaptersLeft = 0; // chapter mode
   private sleepMode: SleepMode = null;
   private modeSet = false;
+  /** Reached the end of what's recorded while the book is still converting: play the next chapter when it lands. */
+  private waitingNext = false;
   state: PlayState = { chapter: -1, playing: false, time: 0, duration: 0, rate: 1 };
 
   constructor() {
@@ -48,6 +53,13 @@ class Playback {
         if (!f.exists) break;
         this.pl.add({ uri: f.uri });
         this.map.push(i);
+        if (this.waitingNext) {
+          this.waitingNext = false;
+          this.emit({ waiting: false });
+          this.pendingSeek = null;
+          this.pl.skipTo(this.map.length - 1);
+          this.play();
+        }
       }
     });
   }
@@ -59,6 +71,8 @@ class Playback {
   }
   private emit(p: Partial<PlayState>) {
     this.state = { ...this.state, ...p };
+    listening.bookId = this.state.book?.id;
+    listening.chapter = this.state.chapter;
     this.listeners.forEach((l) => l(this.state));
   }
 
@@ -87,6 +101,8 @@ class Playback {
         this.pl.destroy();
       } catch {}
     }
+    this.waitingNext = false;
+    this.state.waiting = false;
     const pl = createAudioPlaylist({ sources, updateInterval: 250, loop: 'none' });
     this.pl = pl;
     this.map = map;
@@ -300,6 +316,12 @@ class Playback {
     this.emit({ playing: st.playing, time: st.currentTime, duration: st.duration || this.state.duration, chapter });
     if (Date.now() - this.lastSave > 5000 && st.playing) void this.savePosition();
     if (st.didJustFinish && st.currentIndex === this.map.length - 1) {
+      const b = this.state.book;
+      const last = this.map[this.map.length - 1];
+      if (b && b.chapters.slice(last + 1).some((c) => c.status !== 'done')) {
+        this.waitingNext = true;
+        this.emit({ waiting: true });
+      }
       // end of everything recorded so far (also the "End of book" sleep option)
       if (this.sleepMode?.kind === 'book' || this.sleepMode?.kind === 'chapters') this.setSleep(null);
       this.emit({ playing: false });

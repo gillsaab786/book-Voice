@@ -253,7 +253,7 @@ function clean(segs: Segment[] | undefined): Segment[] {
 
 // ---------------------------------------------------------------- speech
 
-export type Audio = { bytes: Uint8Array; mimeType?: string };
+export type Audio = { bytes: Uint8Array; mimeType?: string; truncated?: boolean };
 
 /** Added to every request so delivery sounds like a real person, not a reader. */
 export const HUMAN_TOUCH =
@@ -311,8 +311,9 @@ export async function speak(opts: {
     generationConfig: { responseModalities: ['AUDIO'], speechConfig },
   }, opts.signal);
   const part = json.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData?.data);
-  if (!part) throw new Error(`No audio returned (${json.candidates?.[0]?.finishReason || json.promptFeedback?.blockReason || 'unknown'})`);
-  return { bytes: base64ToBytes(part.inlineData.data), mimeType: part.inlineData.mimeType };
+  const reason = json.candidates?.[0]?.finishReason;
+  if (!part) throw new Error(reason === 'MAX_TOKENS' ? 'TRUNCATED' : `No audio returned (${reason || json.promptFeedback?.blockReason || 'unknown'})`);
+  return { bytes: base64ToBytes(part.inlineData.data), mimeType: part.inlineData.mimeType, truncated: reason === 'MAX_TOKENS' };
 }
 
 // ---------------------------------------------------------------- voice design

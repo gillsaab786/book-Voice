@@ -15,6 +15,8 @@ export type Chapter = {
   /** chunks of TTS completed (for resume) */
   chunksDone?: number;
   chunksTotal?: number;
+  /** characters per speech request used for this chapter (kept so a resume splits identically) */
+  chunkChars?: number;
   /** bytes of PCM written into the partial wav (for resume) */
   pcmBytes?: number;
   sampleRate?: number;
@@ -153,7 +155,7 @@ export const DEFAULT_SETTINGS: Settings = {
   dialogueMode: false,
   dialogueVoice: { id: 'Achird', label: 'Achird — friendly', prebuilt: true },
   concurrency: 2,
-  chunkChars: 1800,
+  chunkChars: 4500,
   elevenVoiceId: '',
   elevenModel: 'eleven_multilingual_v2',
   playbackRate: 1,

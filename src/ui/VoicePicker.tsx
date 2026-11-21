@@ -6,7 +6,8 @@ import { cachedPreview, previewCached } from '../lib/previews';
 import { AzureVoice, ENGINE_NAMES, listAzureVoices } from '../lib/speech';
 import { getKey, loadSettings } from '../lib/storage';
 import { Engine, GEMINI_TTS_MODELS, LANGUAGES, PREBUILT_VOICES, Settings, STYLE_PRESETS, VoiceChoice, VoiceProfile } from '../lib/types';
-import { Btn, C, Chip, Dim, Field } from './kit';
+import { Btn, C, Chip, Dim, Field, Glass } from './kit';
+import { ModelRanking, OptionMeter, optionFor } from './ModelRanking';
 
 const LANG_FILTERS: [string, string][] = [['', 'All'], ['en', 'English'], ['hi', 'Hindi'], ['pa', 'Punjabi'], ['ur', 'Urdu']];
 const AZURE_LOCALES = ['pa-IN', 'hi-IN', 'en-IN', 'en-AU', 'en-GB', 'en-US', 'ur-PK', 'ur-IN'];
@@ -31,6 +32,7 @@ export function VoicePicker(p: { value: VoiceProfile; onChange: (v: VoiceProfile
   const [azLocale, setAzLocale] = useState('pa-IN');
   const [target, setTarget] = useState<'voice' | 'dialogueVoice'>('voice');
   const [busy, setBusy] = useState(false);
+  const [showRank, setShowRank] = useState(false);
   const player = useRef<AudioPlayer | null>(null);
 
   useEffect(() => {
@@ -98,7 +100,14 @@ export function VoicePicker(p: { value: VoiceProfile; onChange: (v: VoiceProfile
           e === 'device' && !nativeAvailable ? null : <Chip key={e} label={ENGINE_NAMES[e]} on={v.engine === e} onPress={() => chooseEngine(e)} />
         )}
       </View>
-      <Dim style={{ marginBottom: 12 }}>{ENGINE_HINT[v.engine]}</Dim>
+      <Glass style={{ padding: 12, marginBottom: 12 }}>
+        <OptionMeter o={optionFor(v.engine, v.ttsModel || s.ttsModel, devVoices?.find((d) => d.id === v.voice.id)?.quality)} />
+        <Dim style={{ fontSize: 12 }}>{ENGINE_HINT[v.engine]}</Dim>
+        <Pressable onPress={() => setShowRank((x) => !x)} style={{ marginTop: 8 }}>
+          <Text style={{ color: C.accent, fontWeight: '700' }}>{showRank ? 'Hide comparison' : 'Which is best? Compare all voices ›'}</Text>
+        </Pressable>
+        {showRank ? <ModelRanking compact /> : null}
+      </Glass>
 
       {v.engine === 'gemini' ? (
         <>
@@ -195,7 +204,7 @@ export function VoicePicker(p: { value: VoiceProfile; onChange: (v: VoiceProfile
       <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
         <Chip label="Storyteller" on={v.adaptText && v.narration === 'storyteller'} onPress={() => set({ narration: 'storyteller', adaptText: true })} />
         <Chip label="Faithful" on={v.adaptText && v.narration === 'faithful'} onPress={() => set({ narration: 'faithful', adaptText: true })} />
-        <Chip label="Exactly as written (no AI)" on={!v.adaptText} onPress={() => set({ adaptText: false, narration: 'faithful' })} />
+        <Chip label="Exactly as written · fastest" on={!v.adaptText} onPress={() => set({ adaptText: false, narration: 'faithful' })} />
       </View>
       <Dim style={{ marginBottom: 10 }}>
         {!v.adaptText

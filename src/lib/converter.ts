@@ -12,6 +12,8 @@ import {
 import { alignSentences, chunkSentences, Cue, findPauses } from './timing';
 import { Book, Engine, Segment, Settings, VoiceProfile } from './types';
 import { resample16, silence, toPcm, trimSilence, wavHeader } from './wav';
+import { listening } from './listening';
+import { loadSettings as loadS, saveSettings } from './storage';
 
 export const RATE = 24000; // every chapter file: 24 kHz, 16-bit, mono
 
@@ -240,11 +242,21 @@ class Converter {
       }
       return prep.get(i)!;
     };
+    /** Chapters still to do, with the one you're about to listen to first. */
+    const remaining = new Set(todo);
+    const order = () => {
+      const list = [...remaining].sort((a, b) => a - b);
+      if (listening.bookId !== book.id || listening.chapter < 0) return list;
+      const from = listening.chapter;
+      return [...list.filter((i) => i >= from), ...list.filter((i) => i < from)];
+    };
 
-    for (let k = 0; k < todo.length; k++) {
+    while (remaining.size) {
       if (signal.aborted) throw new Error('cancelled');
-      for (let a = k; a < Math.min(todo.length, k + AHEAD); a++) ensurePrep(todo[a]);
-      const i = todo[k];
+      const next = order();
+      next.slice(0, AHEAD).forEach(ensurePrep);
+      const i = next[0];
+      remaining.delete(i);
       const ch = book.chapters[i];
       update(`Preparing “${ch.title}”`, 'reading', i);
       let segs: Segment[];
@@ -308,7 +320,9 @@ class Converter {
 
   private async synthesize(book: Book, i: number, segs: Segment[], s: Settings, p: VoiceProfile, signal: AbortSignal, say: (m: string) => void) {
     const ch = book.chapters[i];
-    const chunks = chunkSegments(segs, chunkCharsFor(p.engine, s));
+    const size = (ch.chunksDone && ch.chunkChars) || chunkCharsFor(p.engine, s);
+    ch.chunkChars = size;
+    const chunks = chunkSegments(segs, size);
     const partial = chapterPartialFile(book.id, i);
     const label = profileLabel(p);
     if (ch.voiceLabel && ch.voiceLabel !== label && ch.chunksDone) {
@@ -352,9 +366,9 @@ class Converter {
         if (signal.aborted) throw new Error('cancelled');
         say(`Recording “${ch.title}” ${Math.round((next / chunks.length) * 100)}%`);
         const batch = chunks.slice(next, next + conc);
-        const audios = await Promise.all(batch.map((parts) => synth(s, p, parts, signal)));
+        const audios = await Promise.all(batch.map((parts) => synthSafe(s, p, parts, signal)));
         for (let b = 0; b < audios.length; b++) {
-          const body = trimSilence(to24k(audios[b]), RATE);
+          const body = trimSilence(audios[b], RATE);
           const startSec = ch.pcmBytes! / (RATE * 2);
           const sentences = chunkSentences(batch[b]);
           const starts = alignSentences(sentences.map((x) => x.s), body.length / (RATE * 2), findPauses(body, RATE));
@@ -383,6 +397,55 @@ class Converter {
     ch.error = undefined;
     saveBook(book);
   }
+}
+
+const letters = (parts: Segment[]) => parts.reduce((n, x) => n + x.text.replace(/<[^>]{1,20}>/g, '').length, 0);
+
+/**
+ * One speech request, 24 kHz PCM out. Big Gemini requests give more audio per day (the free
+ * limit counts requests), but if Gemini cuts a long one short we split it, try again, and
+ * remember to use smaller requests from now on.
+ */
+async function synthSafe(s: Settings, p: VoiceProfile, parts: Segment[], signal?: AbortSignal, depth = 0): Promise<Uint8Array> {
+  const chars = letters(parts);
+  let pcm: Uint8Array | null = null;
+  let cut = false;
+  try {
+    const a = await synth(s, p, parts, signal);
+    pcm = to24k(a);
+    cut = !!a.truncated;
+  } catch (e: any) {
+    if (e?.message !== 'TRUNCATED' && !/too long|exceeds|maximum|token/i.test(e?.message || '')) throw e;
+    cut = true;
+  }
+  const seconds = pcm ? pcm.length / 2 / RATE : 0;
+  // natural speech is ~13–16 characters a second; far less audio than that means it was cut off
+  if (p.engine === 'gemini' && chars > 900 && depth < 3 && (cut || seconds < (chars / 15) * 0.45)) {
+    const halves = chunkSegments(parts, Math.ceil(chars / 2) + 40);
+    if (halves.length > 1) {
+      const smaller = Math.max(1500, Math.floor(chars * 0.7));
+      if (smaller < s.chunkChars) {
+        const cur = await loadS();
+        if (smaller < cur.chunkChars) await saveSettings({ ...cur, chunkChars: smaller });
+      }
+      const pieces: Uint8Array[] = [];
+      for (const h of halves) pieces.push(await synthSafe(s, p, h, signal, depth + 1));
+      const gap = silence(gapMs(), RATE);
+      const out = new Uint8Array(pieces.reduce((n, x) => n + x.length, 0) + gap.length * (pieces.length - 1));
+      let o = 0;
+      pieces.forEach((x, k) => {
+        out.set(x, o);
+        o += x.length;
+        if (k < pieces.length - 1) {
+          out.set(gap, o);
+          o += gap.length;
+        }
+      });
+      return out;
+    }
+  }
+  if (!pcm) throw new Error('No audio returned');
+  return pcm;
 }
 
 /** Progress of a whole book, 0..1 (text prep counts for a little, the voice for the rest). */
