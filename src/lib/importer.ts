@@ -2,6 +2,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
 import { uid } from './bytes';
 import { pdfOutline, uploadFile } from './gemini';
+import { pdfToBook, readPdfPages } from './pdf';
 import { parseDocx, parseEpub, parseHtmlDoc, parsePlainText, ParsedBook } from './parsers';
 import { bookDir, chapterTextFile, getKey, loadSettings, saveBook, sourceFile, writeText } from './storage';
 import { Book, BookFormat } from './types';
@@ -36,24 +37,39 @@ export async function importBook(asset: DocumentPicker.DocumentPickerAsset, onSt
 
   let parsed: ParsedBook | null = null;
   if (format === 'pdf') {
-    const key = await getKey('gemini');
-    if (!key) throw new Error('Add your Gemini API key in Settings first (PDFs are read by Gemini).');
-    const s = await loadSettings();
-    onStatus('Uploading PDF to Gemini…');
-    book.geminiFile = await uploadFile(key, src, 'application/pdf', baseTitle);
-    onStatus('Gemini is reading the table of contents…');
-    const o = await pdfOutline(key, s.textModel, book.geminiFile);
-    if (o.title) book.title = o.title;
-    if (o.author) book.author = o.author;
-    const secs = (o.sections || [])
-      .filter((x) => x.startPage >= 1 && x.endPage >= x.startPage)
-      .sort((a, b) => a.startPage - b.startPage);
-    if (!secs.length) {
-      const total = Math.max(1, o.totalPages || 1);
-      for (let p = 1; p <= total; p += 10) secs.push({ title: `Pages ${p}–${Math.min(total, p + 9)}`, startPage: p, endPage: Math.min(total, p + 9) });
+    const pages = await readPdfPages(src, (m) => onStatus(m));
+    if (pages) {
+      // Text found: treat it like an EPUB (chapters + text files), no AI needed to read it.
+      parsed = pdfToBook(pages, baseTitle);
+      book.pdfText = true;
+    } else {
+      // Scanned PDF and no OCR key: Gemini reads the pages during conversion.
+      const key = await getKey('gemini');
+      if (!key) throw new Error('This PDF is scanned images. Add a Gemini key, or a Mistral key (Settings ▸ AI keys) for OCR.');
+      const s = await loadSettings();
+      onStatus('Sending PDF to Gemini…');
+      book.geminiFile = await uploadPdf(key, src, baseTitle);
+      onStatus('Gemini is reading the table of contents…');
+      const o = await pdfOutline(key, s.textModel, book.geminiFile);
+      if (o.title) book.title = o.title;
+      if (o.author) book.author = o.author;
+      const secs = (o.sections || [])
+        .filter((x) => x.startPage >= 1 && x.endPage >= x.startPage)
+        .sort((a, b) => a.startPage - b.startPage);
+      if (!secs.length) {
+        const total = Math.max(1, o.totalPages || 1);
+        for (let p = 1; p <= total; p += 10) secs.push({ title: `Pages ${p}–${Math.min(total, p + 9)}`, startPage: p, endPage: Math.min(total, p + 9) });
+      }
+      book.chapters = secs.map((x) => ({ id: uid(), title: x.title, pages: [x.startPage, x.endPage] as [number, number], status: 'pending' }));
     }
-    book.chapters = secs.map((x) => ({ id: uid(), title: x.title, pages: [x.startPage, x.endPage] as [number, number], status: 'pending' }));
-  } else {
+  }
+  if (parsed) {
+    book.title = parsed.title && parsed.title !== 'Untitled' ? parsed.title : baseTitle;
+    book.author = parsed.author;
+    book.chapters = parsed.chapters.map((c) => ({ id: uid(), title: c.title, status: 'pending' }));
+    parsed.chapters.forEach((c, i) => writeText(chapterTextFile(book.id, i), c.text));
+  }
+  if (format !== 'pdf') {
     onStatus('Reading book…');
     const bytes = await src.bytes();
     if (format === 'epub') parsed = await parseEpub(bytes);
@@ -67,6 +83,14 @@ export async function importBook(asset: DocumentPicker.DocumentPickerAsset, onSt
   }
   saveBook(book);
   return book;
+}
+
+async function uploadPdf(key: string, src: File, title: string) {
+  try {
+    return await uploadFile(key, src, 'application/pdf', title);
+  } catch (e: any) {
+    throw new Error(`Gemini couldn't take this PDF (${e?.message || e}). Add a Mistral key in Settings ▸ AI keys to read scanned PDFs instead.`);
+  }
 }
 
 /** Re-upload a PDF if its Gemini file has expired (Gemini keeps uploads ~48h). */

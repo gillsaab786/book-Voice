@@ -18,7 +18,8 @@
       "infoPlist": {
         "UIFileSharingEnabled": true,
         "LSSupportsOpeningDocumentsInPlace": true,
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSSupportsLiveActivities": true
       }
     },
     "android": {
@@ -50,6 +51,300 @@
           "androidForegroundService": false,
           "androidPermissions": []
         }
+      ],
+      "expo-live-activity",
+      [
+        "expo-alternate-app-icons",
+        [
+          {
+            "name": "WaveAmber",
+            "ios": "./assets/icons/WaveAmber.png",
+            "android": {
+              "foregroundImage": "./assets/icons/WaveAmber-fg.png",
+              "backgroundColor": "#050507"
+            }
+          },
+          {
+            "name": "WaveCyanogen",
+            "ios": "./assets/icons/WaveCyanogen.png",
+            "android": {
+              "foregroundImage": "./assets/icons/WaveCyanogen-fg.png",
+              "backgroundColor": "#050507"
+            }
+          },
+          {
+            "name": "WaveTeal",
+            "ios": "./assets/icons/WaveTeal.png",
+            "android": {
+              "foregroundImage": "./assets/icons/WaveTeal-fg.png",
+              "backgroundColor": "#050507"
+            }
+          },
+          {
+            "name": "WaveRose",
+            "ios": "./assets/icons/WaveRose.png",
+            "android": {
+              "foregroundImage": "./assets/icons/WaveRose-fg.png",
+              "backgroundColor": "#050507"
+            }
+          },
+          {
+            "name": "WavePurple",
+            "ios": "./assets/icons/WavePurple.png",
+            "android": {
+              "foregroundImage": "./assets/icons/WavePurple-fg.png",
+              "backgroundColor": "#050507"
+            }
+          },
+          {
+            "name": "WaveBlue",
+            "ios": "./assets/icons/WaveBlue.png",
+            "android": {
+              "foregroundImage": "./assets/icons/WaveBlue-fg.png",
+              "backgroundColor": "#050507"
+            }
+          },
+          {
+            "name": "WaveGold",
+            "ios": "./assets/icons/WaveGold.png",
+            "android": {
+              "foregroundImage": "./assets/icons/WaveGold-fg.png",
+              "backgroundColor": "#050507"
+            }
+          },
+          {
+            "name": "WaveGreen",
+            "ios": "./assets/icons/WaveGreen.png",
+            "android": {
+              "foregroundImage": "./assets/icons/WaveGreen-fg.png",
+              "backgroundColor": "#050507"
+            }
+          },
+          {
+            "name": "WaveSunset",
+            "ios": "./assets/icons/WaveSunset.png",
+            "android": {
+              "foregroundImage": "./assets/icons/WaveSunset-fg.png",
+              "backgroundColor": "#050507"
+            }
+          },
+          {
+            "name": "ListenAmber",
+            "ios": "./assets/icons/ListenAmber.png",
+            "android": {
+              "foregroundImage": "./assets/icons/ListenAmber-fg.png",
+              "backgroundColor": "#050507"
+            }
+          },
+          {
+            "name": "ListenCyanogen",
+            "ios": "./assets/icons/ListenCyanogen.png",
+            "android": {
+              "foregroundImage": "./assets/icons/ListenCyanogen-fg.png",
+              "backgroundColor": "#050507"
+            }
+          },
+          {
+            "name": "ListenTeal",
+            "ios": "./assets/icons/ListenTeal.png",
+            "android": {
+              "foregroundImage": "./assets/icons/ListenTeal-fg.png",
+              "backgroundColor": "#050507"
+            }
+          },
+          {
+            "name": "ListenRose",
+            "ios": "./assets/icons/ListenRose.png",
+            "android": {
+              "foregroundImage": "./assets/icons/ListenRose-fg.png",
+              "backgroundColor": "#050507"
+            }
+          },
+          {
+            "name": "ListenPurple",
+            "ios": "./assets/icons/ListenPurple.png",
+            "android": {
+              "foregroundImage": "./assets/icons/ListenPurple-fg.png",
+              "backgroundColor": "#050507"
+            }
+          },
+          {
+            "name": "ListenBlue",
+            "ios": "./assets/icons/ListenBlue.png",
+            "android": {
+              "foregroundImage": "./assets/icons/ListenBlue-fg.png",
+              "backgroundColor": "#050507"
+            }
+          },
+          {
+            "name": "ListenGold",
+            "ios": "./assets/icons/ListenGold.png",
+            "android": {
+              "foregroundImage": "./assets/icons/ListenGold-fg.png",
+              "backgroundColor": "#050507"
+            }
+          },
+          {
+            "name": "ListenGreen",
+            "ios": "./assets/icons/ListenGreen.png",
+            "android": {
+              "foregroundImage": "./assets/icons/ListenGreen-fg.png",
+              "backgroundColor": "#050507"
+            }
+          },
+          {
+            "name": "ListenSunset",
+            "ios": "./assets/icons/ListenSunset.png",
+            "android": {
+              "foregroundImage": "./assets/icons/ListenSunset-fg.png",
+              "backgroundColor": "#050507"
+            }
+          },
+          {
+            "name": "GlassAmber",
+            "ios": "./assets/icons/GlassAmber.png",
+            "android": {
+              "foregroundImage": "./assets/icons/GlassAmber-fg.png",
+              "backgroundColor": "#050507"
+            }
+          },
+          {
+            "name": "GlassCyanogen",
+            "ios": "./assets/icons/GlassCyanogen.png",
+            "android": {
+              "foregroundImage": "./assets/icons/GlassCyanogen-fg.png",
+              "backgroundColor": "#050507"
+            }
+          },
+          {
+            "name": "GlassTeal",
+            "ios": "./assets/icons/GlassTeal.png",
+            "android": {
+              "foregroundImage": "./assets/icons/GlassTeal-fg.png",
+              "backgroundColor": "#050507"
+            }
+          },
+          {
+            "name": "GlassRose",
+            "ios": "./assets/icons/GlassRose.png",
+            "android": {
+              "foregroundImage": "./assets/icons/GlassRose-fg.png",
+              "backgroundColor": "#050507"
+            }
+          },
+          {
+            "name": "GlassPurple",
+            "ios": "./assets/icons/GlassPurple.png",
+            "android": {
+              "foregroundImage": "./assets/icons/GlassPurple-fg.png",
+              "backgroundColor": "#050507"
+            }
+          },
+          {
+            "name": "GlassBlue",
+            "ios": "./assets/icons/GlassBlue.png",
+            "android": {
+              "foregroundImage": "./assets/icons/GlassBlue-fg.png",
+              "backgroundColor": "#050507"
+            }
+          },
+          {
+            "name": "GlassGold",
+            "ios": "./assets/icons/GlassGold.png",
+            "android": {
+              "foregroundImage": "./assets/icons/GlassGold-fg.png",
+              "backgroundColor": "#050507"
+            }
+          },
+          {
+            "name": "GlassGreen",
+            "ios": "./assets/icons/GlassGreen.png",
+            "android": {
+              "foregroundImage": "./assets/icons/GlassGreen-fg.png",
+              "backgroundColor": "#050507"
+            }
+          },
+          {
+            "name": "GlassSunset",
+            "ios": "./assets/icons/GlassSunset.png",
+            "android": {
+              "foregroundImage": "./assets/icons/GlassSunset-fg.png",
+              "backgroundColor": "#050507"
+            }
+          },
+          {
+            "name": "MoonAmber",
+            "ios": "./assets/icons/MoonAmber.png",
+            "android": {
+              "foregroundImage": "./assets/icons/MoonAmber-fg.png",
+              "backgroundColor": "#050507"
+            }
+          },
+          {
+            "name": "MoonCyanogen",
+            "ios": "./assets/icons/MoonCyanogen.png",
+            "android": {
+              "foregroundImage": "./assets/icons/MoonCyanogen-fg.png",
+              "backgroundColor": "#050507"
+            }
+          },
+          {
+            "name": "MoonTeal",
+            "ios": "./assets/icons/MoonTeal.png",
+            "android": {
+              "foregroundImage": "./assets/icons/MoonTeal-fg.png",
+              "backgroundColor": "#050507"
+            }
+          },
+          {
+            "name": "MoonRose",
+            "ios": "./assets/icons/MoonRose.png",
+            "android": {
+              "foregroundImage": "./assets/icons/MoonRose-fg.png",
+              "backgroundColor": "#050507"
+            }
+          },
+          {
+            "name": "MoonPurple",
+            "ios": "./assets/icons/MoonPurple.png",
+            "android": {
+              "foregroundImage": "./assets/icons/MoonPurple-fg.png",
+              "backgroundColor": "#050507"
+            }
+          },
+          {
+            "name": "MoonBlue",
+            "ios": "./assets/icons/MoonBlue.png",
+            "android": {
+              "foregroundImage": "./assets/icons/MoonBlue-fg.png",
+              "backgroundColor": "#050507"
+            }
+          },
+          {
+            "name": "MoonGold",
+            "ios": "./assets/icons/MoonGold.png",
+            "android": {
+              "foregroundImage": "./assets/icons/MoonGold-fg.png",
+              "backgroundColor": "#050507"
+            }
+          },
+          {
+            "name": "MoonGreen",
+            "ios": "./assets/icons/MoonGreen.png",
+            "android": {
+              "foregroundImage": "./assets/icons/MoonGreen-fg.png",
+              "backgroundColor": "#050507"
+            }
+          },
+          {
+            "name": "MoonSunset",
+            "ios": "./assets/icons/MoonSunset.png",
+            "android": {
+              "foregroundImage": "./assets/icons/MoonSunset-fg.png",
+              "backgroundColor": "#050507"
+            }
+          }
+        ]
       ]
     ],
     "scheme": "bookvoice"

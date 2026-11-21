@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { ActionSheetIOS, Alert, FlatList, Platform, Pressable, Text, View } from 'react-native';
 import { formatBytes, formatDuration } from '../lib/bytes';
-import { converter, resetChapter, voiceLabel } from '../lib/converter';
+import { bookPercent, converter, resetChapter } from '../lib/converter';
+import { fmtEta } from '../lib/background';
+import { timeLabel } from '../lib/errors';
+import { profileFromSettings, profileLabel } from '../lib/speech';
+import { ConvertSheet } from './ConvertSheet';
 import { exportToFolder, shareChapter } from '../lib/exporter';
 import { playback } from '../lib/playback';
 import { bookAudioBytes, loadSettings } from '../lib/storage';
@@ -15,12 +19,14 @@ export function BookScreen(p: { id: string; onBack: () => void; openPlayer: () =
   const play = usePlayback();
   const [voice, setVoice] = useState('');
   const [exporting, setExporting] = useState<string | null>(null);
-  useEffect(() => void loadSettings().then((s) => setVoice(voiceLabel(s))), [conv.running]);
+  const [pick, setPick] = useState(false);
+  useEffect(() => void loadSettings().then((s) => setVoice(profileLabel(book?.profile || profileFromSettings(s)))), [book?.profile, pick]);
   if (!book) return <Header title="" onBack={p.onBack} />;
 
   const done = book.chapters.filter((c) => c.status === 'done').length;
   const total = book.chapters.length;
-  const mine = conv.running && conv.bookId === book.id;
+  const pr = conv.books[book.id];
+  const mine = !!pr && (pr.state === 'reading' || pr.state === 'recording');
   const queued = converter.isQueued(book.id);
   const dur = book.chapters.reduce((s, c) => s + (c.durationSec || 0), 0);
 
@@ -45,9 +51,9 @@ export function BookScreen(p: { id: string; onBack: () => void; openPlayer: () =
     const ch = book.chapters[i];
     const opts: [string, () => void][] = [
       ['View text', () => p.openText(i)],
-      ['Record this chapter now', () => converter.enqueue({ bookId: book.id, chapters: [i] })],
-      ['Re-record with current voice', () => { resetChapter(book, i, true); converter.enqueue({ bookId: book.id, chapters: [i] }); }],
-      ['Re-adapt text + re-record', () => { resetChapter(book, i, false); converter.enqueue({ bookId: book.id, chapters: [i] }); }],
+      ['Record this chapter', () => void converter.enqueue(book.id, { chapters: [i] })],
+      ['Re-record with this book’s voice', () => { resetChapter(book, i, true); void converter.enqueue(book.id, { chapters: [i] }); }],
+      ['Re-adapt text + re-record', () => { resetChapter(book, i, false); void converter.enqueue(book.id, { chapters: [i] }); }],
     ];
     if (ch.status === 'done') opts.push(['Share / save audio file', () => shareChapter(book, i).catch((e) => Alert.alert('Share failed', e.message))]);
     if (Platform.OS === 'ios') {
@@ -84,29 +90,34 @@ export function BookScreen(p: { id: string; onBack: () => void; openPlayer: () =
               {done}/{total} chapters recorded{dur ? ` · ${formatDuration(dur)}` : ''}{done ? ` · ${formatBytes(bookAudioBytes(book))}` : ''}
             </Dim>
             <Card style={{ marginTop: 14 }}>
-              <Dim style={{ marginBottom: 10 }} numberOfLines={2}>Voice: {voice}</Dim>
-              {mine ? (
+              <Pressable onPress={() => setPick(true)}>
+                <Dim style={{ marginBottom: 10 }} numberOfLines={2}>Voice: {voice}  <Text style={{ color: C.accent }}>Change</Text></Dim>
+              </Pressable>
+              {pr && pr.state !== 'done' ? (
                 <>
-                  <Text style={{ color: C.text, marginBottom: 8 }} numberOfLines={2}>{conv.message}</Text>
-                  <Bar value={conv.total ? (conv.done || 0) / conv.total : 0} />
-                  <Dim style={{ marginTop: 6, marginBottom: 12 }}>
-                    {conv.phase === 'script' ? 'Adapting text' : 'Recording'} {conv.done}/{conv.total} · keep the app open while converting
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                    <Text style={{ color: C.text, flex: 1 }} numberOfLines={2}>{pr.message}</Text>
+                    <Text style={{ color: C.accent, fontSize: 20, fontWeight: '800' }}>{Math.floor(pr.percent * 100)}%</Text>
+                  </View>
+                  <Bar value={pr.percent} color={pr.state === 'error' ? C.red : C.accent} />
+                  <Dim style={{ marginTop: 6, marginBottom: 12, color: pr.state === 'error' ? C.red : C.dim }}>
+                    {pr.state === 'waiting' && pr.waitUntil ? `Paused · carries on at ${timeLabel(pr.waitUntil)}` : pr.state === 'queued' ? 'In the queue' : pr.state === 'error' ? pr.error : `Keeps going in the background${pr.eta ? ` · ~${fmtEta(pr.eta)} left` : ''}`}
                   </Dim>
-                  <Btn title="Pause converting" kind="ghost" onPress={() => converter.stop(book.id)} />
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <Btn style={{ flex: 1 }} title="Stop converting" kind="ghost" onPress={() => converter.stop(book.id)} />
+                    {done > 0 ? <Btn title="▶" kind="ghost" onPress={resume} /> : null}
+                  </View>
                 </>
-              ) : queued ? (
-                <Btn title="Queued — tap to cancel" kind="ghost" onPress={() => converter.stop(book.id)} />
               ) : (
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <Btn
                     style={{ flex: 1 }}
                     title={done === total ? (book.position ? `▶  Continue · Ch ${book.position.chapter + 1}` : '▶  Play') : done ? 'Continue converting' : 'Convert to audio'}
-                    onPress={() => (done === total ? resume() : converter.enqueue({ bookId: book.id }))}
+                    onPress={() => (done === total ? resume() : done ? void converter.enqueue(book.id) : setPick(true))}
                   />
                   {done > 0 && done < total ? <Btn title="▶" kind="ghost" onPress={resume} /> : null}
                 </View>
               )}
-              {conv.error && (mine || !conv.running) ? <Dim style={{ color: C.red, marginTop: 10 }}>{conv.error}</Dim> : null}
             </Card>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <Dim>Tap to play · long-press for options</Dim>
@@ -118,13 +129,14 @@ export function BookScreen(p: { id: string; onBack: () => void; openPlayer: () =
           <ChapterRow
             ch={item}
             index={index}
-            active={mine && conv.chapter === index}
+            active={mine && pr?.chapter === index}
             playing={play.book?.id === book.id && play.chapter === index}
             onPress={() => (item.status === 'done' ? playFrom(index) : chapterMenu(index))}
             onLong={() => chapterMenu(index)}
           />
         )}
       />
+      {pick ? <ConvertSheet bookIds={[book.id]} onClose={() => setPick(false)} /> : null}
     </View>
   );
 }

@@ -63,9 +63,9 @@ class Playback {
   }
 
   private async load(bookId: string, chapter: number, time: number, autoplay: boolean) {
+    await this.audioMode();
     if (!this.modeSet) {
       this.modeSet = true;
-      await setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: true, interruptionMode: 'doNotMix' }).catch(() => {});
       this.state.rate = (await loadSettings()).playbackRate || 1;
     }
     const book = await loadBook(bookId);
@@ -95,16 +95,8 @@ class Playback {
     if (idx > 0) pl.skipTo(idx);
     this.pendingSeek = time > 1 ? time : null;
     pl.playbackRate = this.state.rate;
-    try {
-      pl.setActiveForLockScreen(true, this.meta(book, chapter), {
-        showSeekBackward: true,
-        seekBackwardIntervalSeconds: SKIP_SEC,
-        showSeekForward: true,
-        seekForwardIntervalSeconds: SKIP_SEC,
-        showNextTrack: true, // replaces the forward button on iOS; Siri "next track" = next chapter
-        showPreviousTrack: false, // keep the 40 s rewind button on the lock screen
-      });
-    } catch {}
+    this.emit({ book });
+    this.lockScreen(chapter);
     if (autoplay) pl.play();
     this.emit({ book, chapter, playing: autoplay, time, duration: book.chapters[chapter].durationSec || 0 });
     const s = await loadSettings();
@@ -141,8 +133,32 @@ class Playback {
     } catch {}
   }
 
+  private async audioMode() {
+    await setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: true, interruptionMode: 'doNotMix' }).catch(() => {});
+  }
+
+  /** Lock screen / Control Center controls for the book (taken back from the converter's notice). */
+  private lockScreen(chapter = this.state.chapter) {
+    const book = this.state.book;
+    if (!this.pl || !book) return;
+    try {
+      this.pl.setActiveForLockScreen(true, this.meta(book, chapter), {
+        showSeekBackward: true,
+        seekBackwardIntervalSeconds: SKIP_SEC,
+        showSeekForward: true,
+        seekForwardIntervalSeconds: SKIP_SEC,
+        showNextTrack: true, // replaces the forward button on iOS; Siri "next track" = next chapter
+        showPreviousTrack: false, // keep the 40 s rewind button on the lock screen
+      });
+    } catch {}
+  }
+
   play() {
-    this.pl?.play();
+    if (!this.pl) return;
+    void this.audioMode().then(() => {
+      this.lockScreen();
+      this.pl?.play();
+    });
   }
   pause() {
     this.pl?.pause();

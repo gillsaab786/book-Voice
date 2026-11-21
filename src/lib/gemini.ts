@@ -1,6 +1,8 @@
 import { File, UploadType } from 'expo-file-system';
 import { base64ToBytes, sleep } from './bytes';
 import { Segment, Settings, VoiceChoice } from './types';
+import { DailyLimitError, nextPacificMidnight } from './errors';
+import { countUse } from './ai';
 
 const BASE = 'https://generativelanguage.googleapis.com';
 
@@ -14,6 +16,12 @@ function parseRetry(body: any): number | undefined {
   const d = body?.error?.details?.find?.((x: any) => String(x['@type'] || '').includes('RetryInfo'));
   const m = /([\d.]+)s/.exec(d?.retryDelay || '');
   return m ? Math.ceil(Number(m[1]) * 1000) : undefined;
+}
+
+function isDailyQuota(json: any, msg: string): boolean {
+  const v = (json?.error?.details || []).flatMap((d: any) => d?.violations || []);
+  if (v.some((x: any) => /PerDay|per_day|daily/i.test(`${x?.quotaId || ''} ${x?.quotaMetric || ''}`))) return true;
+  return /per day|perday|daily/i.test(msg);
 }
 
 /** POST JSON with retries for 429 / 5xx / network failures. */
@@ -35,12 +43,17 @@ async function post(path: string, key: string, body: unknown, signal?: AbortSign
       } catch {}
       if (res.ok) return json;
       const msg = json?.error?.message || `HTTP ${res.status}`;
+      if (res.status === 429 && isDailyQuota(json, msg)) {
+        // No point retrying until Google resets the day's allowance (midnight Pacific).
+        throw new DailyLimitError('Gemini', nextPacificMidnight(), `Gemini's free daily limit for this is used up`);
+      }
       if (res.status === 429 || res.status >= 500) {
         lastErr = new ApiError(res.status, msg, parseRetry(json));
       } else {
         throw new ApiError(res.status, msg); // 400/401/403/404: don't retry
       }
     } catch (e: any) {
+      if (e instanceof DailyLimitError) throw e;
       if (e instanceof ApiError && e.status < 500 && e.status !== 429) throw e;
       if (signal?.aborted || e?.name === 'AbortError') throw new Error('cancelled');
       lastErr = e;
@@ -63,6 +76,7 @@ export async function generateJson<T>(opts: {
   schema: object;
   signal?: AbortSignal;
 }): Promise<T> {
+  void countUse('gemini-text');
   const json = await post(`/v1beta/models/${opts.model}:generateContent`, opts.key, {
     systemInstruction: { parts: [{ text: opts.system }] },
     contents: [{ role: 'user', parts: opts.parts }],
@@ -291,6 +305,7 @@ export async function speak(opts: {
   }
   if (s.languageCode) speechConfig.languageCode = s.languageCode;
 
+  void countUse('gemini-tts');
   const json = await post(`/v1beta/models/${s.ttsModel}:generateContent`, opts.key, {
     contents: [{ role: 'user', parts }],
     generationConfig: { responseModalities: ['AUDIO'], speechConfig },
@@ -310,7 +325,7 @@ export async function designVoice(
   opts: { description: string; name: string; gender?: string; languageCode?: string }
 ): Promise<{ voice: DesignedVoice; sample?: Audio }> {
   const input = `${opts.description.trim()} The voice must sound like a real, specific human being: natural breath, subtle imperfections, organic warmth and micro-variation in pitch, never synthetic or overly polished.`;
-  const voice: any = { type: 'VOICE_TYPE_PROMPTED', prompted: { input }, displayName: opts.name.slice(0, 60) };
+  const voice: any = { type: 'prompted', prompted: { input }, displayName: opts.name.slice(0, 60) };
   if (opts.gender) voice.gender = opts.gender;
   if (opts.languageCode) voice.languageCode = opts.languageCode;
   const json = await createVoice(key, voice);
@@ -345,10 +360,12 @@ export async function replicateVoice(
   opts: { name: string; sampleWavB64: string; consentWavB64: string }
 ): Promise<DesignedVoice> {
   const json = await createVoice(key, {
-    type: 'VOICE_TYPE_REPLICATED',
+    type: 'replicated',
     displayName: opts.name.slice(0, 60),
-    sourceAudio: { mimeType: 'audio/wav', data: opts.sampleWavB64 },
-    consentAudio: { mimeType: 'audio/wav', data: opts.consentWavB64 },
+    replicated: {
+      sourceAudio: { mimeType: 'audio/wav', data: opts.sampleWavB64 },
+      consentAudio: { mimeType: 'audio/wav', data: opts.consentWavB64 },
+    },
   });
   const v = json.voice || json;
   const id: string = (v.id || v.voiceId || v.name || '').replace(/^voices\//, '');

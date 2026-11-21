@@ -32,13 +32,40 @@ export type Book = {
   addedAt: number;
   chapters: Chapter[];
   geminiFile?: { uri: string; mimeType: string; expiresAt: number };
+  /** PDFs whose text was extracted (on the phone or by OCR) are converted like EPUBs. */
+  pdfText?: boolean;
+  /** How this book is voiced (chosen when queued). */
+  profile?: VoiceProfile;
   position?: { chapter: number; time: number };
 };
 
 export type VoiceChoice = { id: string; label: string; prebuilt: boolean };
 
+/** Which service speaks a book. */
+export type Engine = 'gemini' | 'device' | 'azure' | 'elevenlabs';
+
+/** Everything that decides how a book sounds. Snapshotted onto a book when it's queued. */
+export type VoiceProfile = {
+  engine: Engine;
+  voice: VoiceChoice; // Gemini voice / phone voice id / Azure voice name / ElevenLabs voice id
+  dialogueMode: boolean;
+  dialogueVoice: VoiceChoice;
+  style: string;
+  languageCode: string;
+  narration: 'faithful' | 'storyteller';
+  adaptText: boolean;
+  rate: number; // phone / Azure speaking speed (1 = normal)
+};
+
 export type Settings = {
   provider: 'gemini' | 'elevenlabs';
+  engine: Engine;
+  deviceVoice: VoiceChoice;
+  azureVoice: VoiceChoice;
+  azureRegion: string;
+  speechRate: number;
+  accent: string;
+  appIcon: string;
   ttsModel: string;
   textModel: string;
   voice: VoiceChoice;
@@ -104,6 +131,13 @@ export const DESIGN_PRESETS: { name: string; gender: string; lang: string; text:
 
 export const DEFAULT_SETTINGS: Settings = {
   provider: 'gemini',
+  engine: 'gemini',
+  deviceVoice: { id: '', label: 'Phone default voice', prebuilt: false },
+  azureVoice: { id: 'pa-IN-VaaniNeural', label: 'Vaani (Punjabi)', prebuilt: false },
+  azureRegion: 'australiaeast',
+  speechRate: 1,
+  accent: 'Amber',
+  appIcon: '',
   ttsModel: 'gemini-3.8-flash-tts',
   textModel: 'gemini-3.8-flash',
   voice: { id: 'Sulafat', label: 'Sulafat — warm', prebuilt: true },

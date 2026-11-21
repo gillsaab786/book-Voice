@@ -17,8 +17,8 @@ export function safeName(s: string, max = 60): string {
 }
 
 // ---------- secrets ----------
-export const getKey = (name: 'gemini' | 'eleven') => SecureStore.getItemAsync(`key_${name}`);
-export const setKey = (name: 'gemini' | 'eleven', v: string) =>
+export const getKey = (name: 'gemini' | 'eleven' | 'azure') => SecureStore.getItemAsync(`key_${name}`);
+export const setKey = (name: 'gemini' | 'eleven' | 'azure', v: string) =>
   v ? SecureStore.setItemAsync(`key_${name}`, v.trim()) : SecureStore.deleteItemAsync(`key_${name}`);
 
 // ---------- settings ----------

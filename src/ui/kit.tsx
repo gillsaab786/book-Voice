@@ -1,5 +1,16 @@
 import React from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, TextInputProps, View, ViewStyle } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, TextInput, TextInputProps, View, ViewStyle } from 'react-native';
+import { GlassView, isLiquidGlassAvailable } from 'expo-glass-effect';
+
+/** Accent colours (Settings ▸ Appearance). Each has matching app icons. Keep in sync with tools/make_icons.py. */
+export const ACCENTS: [string, string][] = [
+  ['Amber', '#FF9F0A'], ['Cyanogen', '#00D4F5'], ['Teal', '#2EE6A6'], ['Rose', '#FF375F'], ['Purple', '#BF5AF2'],
+  ['Blue', '#0A84FF'], ['Gold', '#FFD60A'], ['Green', '#30D158'], ['Sunset', '#FF6A3D'],
+];
+
+let glass: boolean | null = null;
+/** iOS 26 Liquid Glass when available; even frosted panels elsewhere. */
+export const hasGlass = () => (glass ??= Platform.OS === 'ios' && (() => { try { return isLiquidGlassAvailable(); } catch { return false; } })());
 
 export const C = {
   bg: '#000000',
@@ -9,10 +20,32 @@ export const C = {
   text: '#F5F5F7',
   dim: '#8E8E93',
   accent: '#FF9F0A',
+  onAccent: '#000000',
   green: '#30D158',
   red: '#FF453A',
   blue: '#0A84FF',
 };
+
+export function setAccent(name: string) {
+  const hex = (ACCENTS.find((a) => a[0] === name) || ACCENTS[0])[1];
+  C.accent = hex;
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  C.onAccent = 0.299 * r + 0.587 * g + 0.114 * b > 150 ? '#000000' : '#FFFFFF';
+}
+export const accentHex = () => C.accent;
+
+/** A frosted glass surface. */
+export function Glass(p: { children?: React.ReactNode; style?: any; interactive?: boolean; radius?: number }) {
+  const r = p.radius ?? 18;
+  if (hasGlass()) {
+    return (
+      <GlassView glassEffectStyle="regular" isInteractive={p.interactive} style={[{ borderRadius: r, overflow: 'hidden' }, p.style]}>
+        {p.children}
+      </GlassView>
+    );
+  }
+  return <View style={[{ borderRadius: r, backgroundColor: 'rgba(38,38,42,0.72)', borderWidth: StyleSheet.hairlineWidth, borderColor: 'rgba(255,255,255,0.12)' }, p.style]}>{p.children}</View>;
+}
 
 export function Btn(p: {
   title: string; onPress?: () => void; kind?: 'primary' | 'ghost' | 'danger'; small?: boolean; disabled?: boolean; busy?: boolean; style?: ViewStyle;
@@ -26,16 +59,16 @@ export function Btn(p: {
         s.btn,
         p.small && s.btnSmall,
         k === 'primary' && { backgroundColor: C.accent },
-        k === 'ghost' && { backgroundColor: C.card2 },
+        k === 'ghost' && (hasGlass() ? { backgroundColor: 'rgba(255,255,255,0.10)' } : { backgroundColor: 'rgba(58,58,62,0.75)' }),
         k === 'danger' && { backgroundColor: '#3A1210' },
         (pressed || p.disabled) && { opacity: 0.55 },
         p.style,
       ]}
     >
       {p.busy ? (
-        <ActivityIndicator color={k === 'primary' ? '#000' : C.text} />
+        <ActivityIndicator color={k === 'primary' ? C.onAccent : C.text} />
       ) : (
-        <Text style={[s.btnText, p.small && { fontSize: 13 }, { color: k === 'primary' ? '#000' : k === 'danger' ? C.red : C.text }]}>{p.title}</Text>
+        <Text style={[s.btnText, p.small && { fontSize: 13 }, { color: k === 'primary' ? C.onAccent : k === 'danger' ? C.red : C.text }]}>{p.title}</Text>
       )}
     </Pressable>
   );
@@ -44,13 +77,13 @@ export function Btn(p: {
 export function Chip(p: { label: string; on?: boolean; onPress?: () => void }) {
   return (
     <Pressable onPress={p.onPress} style={[s.chip, p.on && { backgroundColor: C.accent, borderColor: C.accent }]}>
-      <Text style={{ color: p.on ? '#000' : C.text, fontSize: 13, fontWeight: '600' }}>{p.label}</Text>
+      <Text style={{ color: p.on ? C.onAccent : C.text, fontSize: 13, fontWeight: '600' }}>{p.label}</Text>
     </Pressable>
   );
 }
 
 export function Card(p: { children: React.ReactNode; style?: ViewStyle }) {
-  return <View style={[s.card, p.style]}>{p.children}</View>;
+  return <Glass style={[s.card, p.style]}>{p.children}</Glass>;
 }
 
 export function H(p: { children: React.ReactNode }) {
@@ -97,7 +130,7 @@ const s = StyleSheet.create({
   btnSmall: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10 },
   btnText: { fontSize: 16, fontWeight: '700' },
   chip: { borderWidth: 1, borderColor: C.line, borderRadius: 18, paddingVertical: 7, paddingHorizontal: 12, marginRight: 8, marginBottom: 8, backgroundColor: C.card2 },
-  card: { backgroundColor: C.card, borderRadius: 16, padding: 14, marginBottom: 12, borderWidth: StyleSheet.hairlineWidth, borderColor: C.line },
+  card: { borderRadius: 18, padding: 14, marginBottom: 12 },
   h: { color: C.text, fontSize: 13, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase', marginTop: 8, marginBottom: 10 },
   input: { backgroundColor: C.card2, color: C.text, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11, fontSize: 15, borderWidth: 1, borderColor: C.line },
   barBg: { height: 4, borderRadius: 2, backgroundColor: C.line, overflow: 'hidden' },

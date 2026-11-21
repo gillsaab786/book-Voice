@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { playback, SKIP_SEC } from '../lib/playback';
 import { usePlayback } from './hooks';
-import { Bar, C } from './kit';
+import { Bar, C, Glass } from './kit';
 import { formatDuration } from '../lib/bytes';
 
 export function MiniPlayer({ onOpen }: { onOpen: () => void }) {
@@ -10,7 +10,8 @@ export function MiniPlayer({ onOpen }: { onOpen: () => void }) {
   if (!p.book || p.chapter < 0) return null;
   const ch = p.book.chapters[p.chapter];
   return (
-    <Pressable onPress={onOpen} style={{ backgroundColor: C.card2, borderTopWidth: 1, borderColor: C.line }}>
+    <Pressable onPress={onOpen} style={{ paddingHorizontal: 10, paddingBottom: 6 }}>
+      <Glass interactive radius={22} style={{ overflow: 'hidden' }}>
       <Bar value={p.duration ? p.time / p.duration : 0} />
       <View style={{ flexDirection: 'row', alignItems: 'center', padding: 12 }}>
         <View style={{ flex: 1 }}>
@@ -27,6 +28,7 @@ export function MiniPlayer({ onOpen }: { onOpen: () => void }) {
           <Text style={{ color: C.text, fontSize: 18 }}>⏭</Text>
         </Pressable>
       </View>
+      </Glass>
     </Pressable>
   );
 }

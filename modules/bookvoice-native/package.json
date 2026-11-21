@@ -1,0 +1,9 @@
+{
+  "name": "bookvoice-native",
+  "version": "1.0.0",
+  "description": "BookVoice: phone voices to file, PDF text",
+  "main": "src/index.ts",
+  "license": "MIT",
+  "author": "BookVoice",
+  "homepage": "https://github.com/gillsaab786/book-Voice"
+}

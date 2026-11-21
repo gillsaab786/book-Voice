@@ -142,7 +142,7 @@ const CHAPTER_RE = /^\s*(chapter|part|book|prologue|epilogue|introduction|prefac
 export function parsePlainText(raw: string, fallbackTitle: string): ParsedBook {
   const text = raw.replace(/\r\n?/g, '\n').replace(/^﻿/, '');
   const marks = [...text.matchAll(CHAPTER_RE)]
-    .map((m) => ({ idx: m.index!, title: m[0].trim() }))
+    .map((m) => ({ idx: m.index!, len: m[0].length, title: m[0].trim() }))
     .filter((m) => m.title.length <= 60 && !/[.,;]$/.test(m.title) && m.title.split(/\s+/).length <= 8);
   let chapters: ParsedChapter[] = [];
   if (marks.length >= 2) {
@@ -150,7 +150,7 @@ export function parsePlainText(raw: string, fallbackTitle: string): ParsedBook {
       chapters.push({ title: 'Opening', text: text.slice(0, marks[0].idx).trim() });
     marks.forEach((m, i) => {
       const end = i + 1 < marks.length ? marks[i + 1].idx : text.length;
-      const body = text.slice(m.idx + m.title.length, end).trim();
+      const body = text.slice(m.idx + m.len, end).trim();
       if (body) chapters.push({ title: m.title, text: body });
     });
   } else {

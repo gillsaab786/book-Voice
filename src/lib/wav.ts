@@ -74,3 +74,23 @@ export function trimSilence(pcm: Uint8Array, sampleRate: number, padMs = 120, th
   e = Math.min(n - 1, e + pad);
   return pcm.subarray(s * 2, (e + 1) * 2);
 }
+
+/** Linear-interpolation resample of 16-bit mono PCM (used for phone voices at 22.05/16 kHz). */
+export function resample16(pcm: Uint8Array, from: number, to: number): Uint8Array {
+  if (from === to) return pcm;
+  const src = new DataView(pcm.buffer, pcm.byteOffset, pcm.byteLength);
+  const n = pcm.length >> 1;
+  const m = Math.max(1, Math.floor((n * to) / from));
+  const out = new Uint8Array(m * 2);
+  const dst = new DataView(out.buffer);
+  const step = from / to;
+  for (let i = 0; i < m; i++) {
+    const x = i * step;
+    const j = Math.floor(x);
+    const f = x - j;
+    const a = src.getInt16(Math.min(j, n - 1) * 2, true);
+    const b = src.getInt16(Math.min(j + 1, n - 1) * 2, true);
+    dst.setInt16(i * 2, Math.round(a + (b - a) * f), true);
+  }
+  return out;
+}

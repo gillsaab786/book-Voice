@@ -18,6 +18,14 @@ A personal e-reader that turns your books into natural-sounding audiobooks with 
 - **Siri Shortcuts and assistant routines:** `bookvoice://rewind`, `forward`, `next`, `previous`, `play`, `pause`. Add `?s=60` to a rewind or forward link to change the jump.
 - **Optional ElevenLabs:** use a voice from your own ElevenLabs account instead of Gemini.
 
+## Speed, keys and the queue
+- **AI keys** (Settings ▸ AI keys): paste keys from any service (Groq, NVIDIA, Mistral, OpenRouter, SambaNova, GitHub Models, Cerebras, Hugging Face, DeepSeek…). The app detects the service and model, and every key adapts chapters in parallel.
+- **Voice services:** Gemini (most human-like; small free daily speech allowance), phone voices (unlimited, offline, fast), Microsoft Azure (free 500k characters/month, Punjabi and Hindi), ElevenLabs.
+- **Queue:** add many books, each with its own voice. Books on different voice services convert at the same time.
+- **Background:** conversion keeps going with the app in the background (silent-audio keep-alive), with progress on the Lock Screen, in the Dynamic Island (Live Activity) and in the Android notification.
+- **PDFs:** text is read on the phone (PDFKit / PDFBox). Scanned PDFs use Mistral OCR if you added a Mistral key, otherwise Gemini.
+- **Appearance:** accent colours, and 36 app icons (4 designs in every accent). Liquid Glass on iOS 26.
+
 ## Copying a voice (with consent)
 Settings ▸ Copy a real voice. You need two recordings of the same person: about 1 minute of them talking naturally, and them reading Google's consent statement aloud. Voice notes, M4A, MP3, WAV and video files are all converted on the phone to the WAV format Google requires (24 kHz, 16-bit, mono). Google checks that the consent recording matches the speaker, so only voices whose owners agree can be copied.
 

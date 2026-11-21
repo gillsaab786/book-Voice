@@ -1,0 +1,20 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.bookvoicenative'
+version = '1.0.0'
+
+android {
+  namespace "expo.modules.bookvoicenative"
+  defaultConfig {
+    versionCode 1
+    versionName "1.0.0"
+  }
+}
+
+dependencies {
+  // PDF text extraction on Android (Apache PDFBox port)
+  implementation 'com.tom-roush:pdfbox-android:2.0.27.0'
+}
