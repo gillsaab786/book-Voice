@@ -55,6 +55,8 @@ export type VoiceProfile = {
   narration: 'faithful' | 'storyteller';
   adaptText: boolean;
   rate: number; // phone / Azure speaking speed (1 = normal)
+  /** Gemini only: which speech model (each has its own daily allowance) */
+  ttsModel?: string;
 };
 
 export type Settings = {
@@ -86,6 +88,9 @@ export type Settings = {
   readDim: number; // 0..0.7 extra darkening of the reading page
   readFontSize: number;
   keepAwake: boolean; // keep screen on while the read-along page is open
+  backgroundWork: boolean; // keep converting with the app in the background
+  liveActivity: boolean; // progress on Lock Screen / Dynamic Island
+  previewDownloads: boolean; // fetch voice samples a few a day
   myVoices: { id: string; label: string; description: string; createdAt: number }[];
 };
 
@@ -139,7 +144,7 @@ export const DEFAULT_SETTINGS: Settings = {
   accent: 'Amber',
   appIcon: '',
   ttsModel: 'gemini-3.8-flash-tts',
-  textModel: 'gemini-3.8-flash',
+  textModel: 'gemini-3.5-flash-lite',
   voice: { id: 'Sulafat', label: 'Sulafat — warm', prebuilt: true },
   style: 'warm, natural storyteller talking to one listener; relaxed pace; follows the emotion of the scene',
   languageCode: '',
@@ -157,7 +162,15 @@ export const DEFAULT_SETTINGS: Settings = {
   readDim: 0,
   readFontSize: 21,
   keepAwake: false,
+  backgroundWork: true,
+  liveActivity: true,
+  previewDownloads: true,
 };
+
+export const GEMINI_TTS_MODELS: [string, string, string][] = [
+  ['gemini-3.8-flash-tts', 'Flash TTS', 'Best quality'],
+  ['gemini-3.8-flash-lite-tts', 'Flash-Lite TTS', 'Lighter model with its own daily allowance'],
+];
 
 export const PREBUILT_VOICES: [string, string][] = [
   ['Zephyr', 'bright'], ['Puck', 'upbeat'], ['Charon', 'informative'], ['Kore', 'firm'],

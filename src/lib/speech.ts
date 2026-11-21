@@ -28,6 +28,7 @@ export function profileFromSettings(s: Settings): VoiceProfile {
     dialogueMode: engine === 'gemini' && s.dialogueMode,
     dialogueVoice: s.dialogueVoice,
     style: s.style, languageCode: s.languageCode, narration: s.narration, adaptText: s.adaptText, rate: s.speechRate || 1,
+    ttsModel: s.ttsModel,
   };
 }
 
@@ -45,13 +46,19 @@ export function effective(s: Settings, p: VoiceProfile): Settings {
     narration: p.narration,
     adaptText: p.adaptText,
     speechRate: p.rate,
+    ttsModel: p.engine === 'gemini' && p.ttsModel ? p.ttsModel : s.ttsModel,
   };
 }
 
 export function profileLabel(p: VoiceProfile): string {
   const v = p.voice.label || p.voice.id || 'default voice';
-  if (p.engine === 'gemini') return v + (p.dialogueMode ? ` + ${p.dialogueVoice.label}` : '') + ` · ${p.style.slice(0, 32)}`;
+  if (p.engine === 'gemini') return v + (p.dialogueMode ? ` + ${p.dialogueVoice.label}` : '') + (/lite/.test(p.ttsModel || '') ? ' · Lite' : '') + ` · ${p.style.slice(0, 32)}`;
   return `${v} · ${ENGINE_NAMES[p.engine]}`;
+}
+
+/** Books on different lanes convert at the same time (each Gemini model has its own allowance). */
+export function laneOf(p: VoiceProfile, s: Settings) {
+  return p.engine === 'gemini' ? `gemini:${p.ttsModel || s.ttsModel}` : p.engine;
 }
 
 /** Requests in flight at once for one book. */

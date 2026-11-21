@@ -8,6 +8,16 @@ import * as LiveActivity from 'expo-live-activity';
 import { converter, Progress } from './converter';
 import { playback } from './playback';
 import { accentHex } from '../ui/kit';
+import { loadSettings } from './storage';
+import { prefetchPreviews } from './previews';
+
+let opts = { backgroundWork: true, liveActivity: true, previewDownloads: true };
+export async function refreshBackgroundOptions() {
+  const s = await loadSettings();
+  opts = { backgroundWork: s.backgroundWork !== false, liveActivity: s.liveActivity !== false, previewDownloads: s.previewDownloads !== false };
+  if (!opts.backgroundWork) stopKeepAlive();
+  if (!opts.liveActivity) liveActivity(null, true);
+}
 
 let player: AudioPlayer | null = null;
 let activityId: string | undefined;
@@ -37,7 +47,7 @@ export function fmtEta(sec: number) {
 }
 
 async function startKeepAlive() {
-  if (player) return;
+  if (player || !opts.backgroundWork) return;
   if (playback.state.playing) return; // listening to a book already keeps the app alive
   await setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: true, interruptionMode: 'mixWithOthers' }).catch(() => {});
   player = createAudioPlayer(require('../../assets/silence.wav'));
@@ -64,8 +74,9 @@ function showOnLockScreen(s: { title: string; subtitle: string }) {
   } catch {}
 }
 
-function liveActivity(s: { title: string; subtitle: string; progress: number } | null) {
+function liveActivity(s: { title: string; subtitle: string; progress: number } | null, force = false) {
   if (Platform.OS !== 'ios') return;
+  if (!opts.liveActivity && !force && s) return;
   try {
     if (!s) {
       if (activityId) LiveActivity.stopActivity(activityId, { title: 'Books converted', subtitle: 'Ready to listen', progressBar: { progress: 1 } });
@@ -91,7 +102,15 @@ function liveActivity(s: { title: string; subtitle: string; progress: number } |
 }
 
 /** Wire it up once at app start. */
+const geminiBusy = () =>
+  Object.values(converter.progress.books).some((b) => b.engine === 'gemini' && (b.state === 'recording' || b.state === 'reading'));
+
+function maybePrefetch() {
+  if (opts.previewDownloads) void prefetchPreviews(geminiBusy);
+}
+
 export function initBackground() {
+  void refreshBackgroundOptions().then(() => setTimeout(maybePrefetch, 8000));
   converter.subscribe((p) => {
     const s = summary(p);
     const working = Object.values(p.books).some((b) => b.state === 'reading' || b.state === 'recording' || b.state === 'queued');
@@ -116,6 +135,7 @@ export function initBackground() {
     else if (!st.playing && converter.progress.running && !player) void startKeepAlive();
   });
   AppState.addEventListener('change', (st) => {
+    if (st === 'active') setTimeout(maybePrefetch, 5000);
     if (st === 'active' && converter.progress.running) {
       const s = summary(converter.progress);
       if (s) liveActivity(s);

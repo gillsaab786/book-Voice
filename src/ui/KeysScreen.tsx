@@ -75,7 +75,7 @@ export function KeysScreen({ onBack }: { onBack: () => void }) {
         <Card>
           <Field value={gKey} onChangeText={setGKey} onBlur={() => setKey('gemini', gKey)} secureTextEntry autoCapitalize="none" autoCorrect={false} placeholder="AIza…" />
           <Meter title="Speech" line={`${gem('gemini-tts')} requests today · resets ${timeLabel(nextPacificMidnight())}`} used={Math.min(1, gem('gemini-tts') / 100)} />
-          <Meter title="Text" line={`${gem('gemini-text')} requests today`} used={Math.min(1, gem('gemini-text') / 1000)} />
+          <Meter title="Text" line={`${gem('gemini-text')} requests today`} used={Math.min(1, gem('gemini-text') / 500)} />
           <Dim style={{ marginTop: 8 }}>
             Google counts free use per project, not per key, so extra Gemini keys from the same account don’t add speed. Use one Gemini key here.
           </Dim>

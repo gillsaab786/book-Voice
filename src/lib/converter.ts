@@ -5,7 +5,7 @@ import { DailyLimitError, timeLabel } from './errors';
 import { Audio, scriptFromPdf } from './gemini';
 import { ensurePdfOnGemini } from './importer';
 import { adaptChapter } from './prep';
-import { chunkCharsFor, engineConcurrency, engineProblem, ENGINE_NAMES, profileFromSettings, profileLabel, synth } from './speech';
+import { chunkCharsFor, engineConcurrency, engineProblem, ENGINE_NAMES, laneOf, profileFromSettings, profileLabel, synth } from './speech';
 import {
   chapterAudioFile, chapterPartialFile, chapterScriptFile, chapterTextFile, chapterTimingFile, getKey, loadBook, loadSettings, saveBook, writeText,
 } from './storage';
@@ -19,6 +19,7 @@ export type BookProgress = {
   bookId: string;
   title: string;
   engine: Engine;
+  lane: string;
   percent: number; // 0..1
   state: 'queued' | 'reading' | 'recording' | 'waiting' | 'error' | 'done';
   message: string;
@@ -42,7 +43,7 @@ const CHAPTER_LEAD_MS = 700;
 
 class Converter {
   private queue: QueueItem[] = [];
-  private running = new Map<string, { abort: AbortController; engine: Engine; started: number; p0: number }>();
+  private running = new Map<string, { abort: AbortController; engine: string; started: number; p0: number }>();
   private listeners = new Set<(p: Progress) => void>();
   private timer: any = null;
   private loaded = false;
@@ -66,7 +67,7 @@ class Converter {
     }, 250);
   }
   private setBook(id: string, patch: Partial<BookProgress>) {
-    const prev = this.progress.books[id] || ({ bookId: id, title: '', engine: 'gemini', percent: 0, state: 'queued', message: '' } as BookProgress);
+    const prev = this.progress.books[id] || ({ bookId: id, title: '', engine: 'gemini', lane: 'gemini', percent: 0, state: 'queued', message: '' } as BookProgress);
     this.progress.books[id] = { ...prev, ...patch };
     this.emit();
   }
@@ -94,7 +95,7 @@ class Converter {
       const b = await loadBook(bookId);
       const s = await loadSettings();
       const p = b.profile || profileFromSettings(s);
-      this.setBook(bookId, { title: b.title, engine: p.engine, percent: bookPercent(b), state, message: state === 'queued' ? `Waiting · ${ENGINE_NAMES[p.engine]}` : '' });
+      this.setBook(bookId, { title: b.title, engine: p.engine, lane: laneOf(p, s), percent: bookPercent(b), state, message: state === 'queued' ? `Waiting · ${ENGINE_NAMES[p.engine]}` : '' });
     } catch {}
   }
 
@@ -157,7 +158,7 @@ class Converter {
         nextWake = Math.min(nextWake, q.waitUntil);
         continue;
       }
-      const engine = this.progress.books[q.bookId]?.engine || 'gemini';
+      const engine = this.progress.books[q.bookId]?.lane || 'gemini';
       if (busy.has(engine)) continue;
       busy.add(engine);
       void this.start(q, engine);
@@ -168,7 +169,7 @@ class Converter {
     this.emitNow();
   }
 
-  private async start(q: QueueItem, engine: Engine) {
+  private async start(q: QueueItem, engine: string) {
     const abort = new AbortController();
     const book0 = await loadBook(q.bookId).catch(() => null);
     if (!book0) {
@@ -225,7 +226,7 @@ class Converter {
       const pct = bookPercent(book);
       let eta: number | undefined;
       if (r && pct - r.p0 > 0.01) eta = ((Date.now() - r.started) / 1000) * ((1 - pct) / (pct - r.p0));
-      this.setBook(book.id, { title: book.title, engine: profile.engine, percent: pct, state, message: msg, chapter, eta });
+      this.setBook(book.id, { title: book.title, engine: profile.engine, lane: laneOf(profile, s), percent: pct, state, message: msg, chapter, eta });
     };
 
     // Text preparation runs ahead of the voice, several chapters at once.

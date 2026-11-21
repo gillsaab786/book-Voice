@@ -1,5 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Linking, Platform, Pressable, ScrollView, Switch, Text, View } from 'react-native';
+import { refreshBackgroundOptions } from '../lib/background';
+import { makeBackup, restoreBackup } from '../lib/backup';
+import { previewCount } from '../lib/previews';
+import { setAccent } from './kit';
 import { handleRemoteUrl, REMOTE_LINKS } from '../lib/remote';
 import { ENGINE_NAMES, profileFromSettings, profileLabel } from '../lib/speech';
 import { loadKeys } from '../lib/ai';
@@ -13,8 +17,11 @@ export function SettingsScreen({ onBack, open }: { onBack: () => void; open: (p:
   const [s, setS] = useState<Settings | null>(null);
   const [adv, setAdv] = useState(false);
   const [keyLine, setKeyLine] = useState('');
+  const [prev, setPrev] = useState('');
+  const [busy, setBusy] = useState<string | null>(null);
   useEffect(() => {
     void loadSettings().then(setS);
+    void previewCount().then((c) => setPrev(`${c.have}/${c.total} Gemini voice samples saved`));
     void (async () => {
       const g = await getKey('gemini');
       const n = (await loadKeys()).length;
@@ -25,7 +32,43 @@ export function SettingsScreen({ onBack, open }: { onBack: () => void; open: (p:
   const update = (patch: Partial<Settings>) => {
     const n = { ...s, ...patch };
     setS(n);
-    void saveSettings(n);
+    void saveSettings(n).then(refreshBackgroundOptions);
+  };
+  const Toggle = (t: { label: string; hint: string; value: boolean; onChange: (v: boolean) => void }) => (
+    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+      <View style={{ flex: 1, paddingRight: 12 }}>
+        <Text style={{ color: C.text, fontWeight: '600' }}>{t.label}</Text>
+        <Dim style={{ marginTop: 2 }}>{t.hint}</Dim>
+      </View>
+      <Switch value={t.value} onValueChange={t.onChange} trackColor={{ true: C.accent }} />
+    </View>
+  );
+  const backup = async () => {
+    setBusy('backup');
+    try {
+      await makeBackup();
+    } catch (e: any) {
+      Alert.alert('Backup failed', e?.message || String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+  const restore = async () => {
+    setBusy('restore');
+    try {
+      const msg = await restoreBackup();
+      if (msg) {
+        const n = await loadSettings();
+        setS(n);
+        setAccent(n.accent);
+        await refreshBackgroundOptions();
+        Alert.alert('Restored', msg + ' Close and reopen the app to see every change.');
+      }
+    } catch (e: any) {
+      Alert.alert('Restore failed', e?.message || String(e));
+    } finally {
+      setBusy(null);
+    }
   };
 
   const Row = (r: { title: string; sub: string; page: SettingsPage }) => (
@@ -47,6 +90,47 @@ export function SettingsScreen({ onBack, open }: { onBack: () => void; open: (p:
         <Row title="AI keys" sub={keyLine} page="keys" />
         <Row title="Voices" sub={`${ENGINE_NAMES[profileFromSettings(s).engine]} · ${profileLabel(profileFromSettings(s))}`} page="voices" />
         <Row title="Appearance & app icon" sub={`${s.accent} accent`} page="appearance" />
+
+        <H>Background</H>
+        <Card>
+          <Toggle
+            label="Keep converting in the background"
+            hint="On by default — there’s no button to press. While books convert, the app keeps going when you switch apps or lock the phone (it plays silent audio, like iTorrent). Music from other apps still plays."
+            value={s.backgroundWork !== false}
+            onChange={(v) => update({ backgroundWork: v })}
+          />
+          {Platform.OS === 'ios' ? (
+            <Toggle
+              label="Progress on Lock Screen & Dynamic Island"
+              hint="Shows each book’s percentage as a Live Activity while converting."
+              value={s.liveActivity !== false}
+              onChange={(v) => update({ liveActivity: v })}
+            />
+          ) : null}
+          <Toggle
+            label="Download voice samples"
+            hint={`A few Gemini voice samples a day while the app is open, saved for free replay. ${prev}`}
+            value={s.previewDownloads !== false}
+            onChange={(v) => update({ previewDownloads: v })}
+          />
+          <Dim style={{ marginBottom: 10 }}>
+            {Platform.OS === 'ios'
+              ? 'If progress doesn’t show: iPhone Settings ▸ BookVoice ▸ turn on Live Activities (and Background App Refresh).'
+              : 'If converting stops in the background: Phone settings ▸ Apps ▸ BookVoice ▸ Battery ▸ Unrestricted, and allow notifications.'}
+          </Dim>
+          <Btn title="Open phone settings for BookVoice" kind="ghost" onPress={() => void Linking.openSettings()} />
+        </Card>
+
+        <H>Backup & restore</H>
+        <Card>
+          <Dim style={{ marginBottom: 10 }}>
+            One file with all your settings, voices you made and every key (Gemini, Azure, ElevenLabs and AI keys). Save it to Files, iCloud Drive or Google Drive. It contains your keys, so keep it private.
+          </Dim>
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <Btn title="Back up" busy={busy === 'backup'} onPress={backup} style={{ flex: 1 }} />
+            <Btn title="Restore" kind="ghost" busy={busy === 'restore'} onPress={restore} style={{ flex: 1 }} />
+          </View>
+        </Card>
 
         <H>{Platform.OS === 'ios' ? 'Siri & Shortcuts' : 'Assistant & shortcuts'}</H>
         <Card>

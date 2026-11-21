@@ -28,6 +28,8 @@ export async function loadSettings(): Promise<Settings> {
   try {
     const f = settingsFile();
     settingsCache = f.exists ? { ...DEFAULT_SETTINGS, ...JSON.parse(await f.text()) } : { ...DEFAULT_SETTINGS };
+    // 3.8 Flash allows only ~20 free text requests a day; Flash-Lite allows ~500.
+    if (settingsCache!.textModel === 'gemini-3.8-flash') settingsCache!.textModel = DEFAULT_SETTINGS.textModel;
   } catch {
     settingsCache = { ...DEFAULT_SETTINGS };
   }

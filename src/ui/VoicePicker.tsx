@@ -2,18 +2,11 @@ import { AudioPlayer, createAudioPlayer } from 'expo-audio';
 import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, Switch, Text, View } from 'react-native';
 import { DeviceVoice, listDeviceVoices, nativeAvailable } from '../../modules/bookvoice-native/src';
-import { previewVoice } from '../lib/converter';
+import { cachedPreview, previewCached } from '../lib/previews';
 import { AzureVoice, ENGINE_NAMES, listAzureVoices } from '../lib/speech';
 import { getKey, loadSettings } from '../lib/storage';
-import { Engine, LANGUAGES, PREBUILT_VOICES, Settings, STYLE_PRESETS, VoiceChoice, VoiceProfile } from '../lib/types';
+import { Engine, GEMINI_TTS_MODELS, LANGUAGES, PREBUILT_VOICES, Settings, STYLE_PRESETS, VoiceChoice, VoiceProfile } from '../lib/types';
 import { Btn, C, Chip, Dim, Field } from './kit';
-
-export const SAMPLE: Record<string, string> = {
-  'pa-IN': 'ਸਤ ਸ੍ਰੀ ਅਕਾਲ। ਇਹ ਤੁਹਾਡੀ ਕਿਤਾਬ ਦੀ ਆਵਾਜ਼ ਹੈ — ਆਓ ਕਹਾਣੀ ਸ਼ੁਰੂ ਕਰੀਏ।',
-  'hi-IN': 'नमस्ते। यह आपकी किताब की आवाज़ है — चलिए, कहानी शुरू करते हैं।',
-  'ur-PK': 'السلام علیکم۔ یہ آپ کی کتاب کی آواز ہے — آئیے کہانی شروع کرتے ہیں۔',
-};
-const SAMPLE_EN = 'Chapter One. The rain had stopped by the time she reached the old house, and for a moment, everything was perfectly still.';
 
 const LANG_FILTERS: [string, string][] = [['', 'All'], ['en', 'English'], ['hi', 'Hindi'], ['pa', 'Punjabi'], ['ur', 'Urdu']];
 const AZURE_LOCALES = ['pa-IN', 'hi-IN', 'en-IN', 'en-AU', 'en-GB', 'en-US', 'ur-PK', 'ur-IN'];
@@ -69,20 +62,30 @@ export function VoicePicker(p: { value: VoiceProfile; onChange: (v: VoiceProfile
   const pickGemini = (c: VoiceChoice) => set({ [target]: c } as Partial<VoiceProfile>);
   const cur = target === 'dialogueVoice' ? v.dialogueVoice : v.voice;
 
+  const play = (uri: string) => {
+    player.current?.remove();
+    player.current = createAudioPlayer({ uri });
+    player.current.play();
+  };
+  const target_ = (c: VoiceChoice): VoiceProfile => (target === 'dialogueVoice' ? { ...v, voice: c } : { ...v, voice: c });
   const preview = async () => {
     setBusy(true);
     try {
-      const lang = v.engine === 'azure' ? v.voice.id.slice(0, 5) : v.languageCode;
-      const f = await previewVoice(s, SAMPLE[lang] || SAMPLE_EN, target === 'dialogueVoice' ? { ...v, voice: v.dialogueVoice } : v);
-      player.current?.remove();
-      player.current = createAudioPlayer({ uri: f.uri });
-      player.current.play();
+      const r = await previewCached(s, target === 'dialogueVoice' ? { ...v, voice: v.dialogueVoice } : v);
+      play(r.file.uri);
     } catch (e: any) {
       Alert.alert('Preview failed', e?.message || String(e));
     } finally {
       setBusy(false);
     }
   };
+  /** Tapping a Gemini voice plays its saved sample straight away (no credit used). */
+  const tapGemini = (c: VoiceChoice) => {
+    pickGemini(c);
+    const hit = cachedPreview(s, { ...target_(c), dialogueMode: false });
+    if (hit) play(hit.uri);
+  };
+  const has = (c: VoiceChoice) => !!cachedPreview(s, { ...target_(c), dialogueMode: false });
 
   const devList = (devVoices || []).filter((d) => !langF || d.language.toLowerCase().startsWith(langF));
   const azList = (azVoices || []).filter((a) => a.locale === azLocale);
@@ -99,6 +102,15 @@ export function VoicePicker(p: { value: VoiceProfile; onChange: (v: VoiceProfile
 
       {v.engine === 'gemini' ? (
         <>
+          <Dim style={{ marginBottom: 6 }}>Speech model</Dim>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+            {GEMINI_TTS_MODELS.map(([id, name]) => (
+              <Chip key={id} label={name} on={(v.ttsModel || s.ttsModel) === id} onPress={() => set({ ttsModel: id })} />
+            ))}
+          </View>
+          <Dim style={{ marginBottom: 10 }}>
+            {(GEMINI_TTS_MODELS.find((m) => m[0] === (v.ttsModel || s.ttsModel)) || GEMINI_TTS_MODELS[0])[2]}. Books on different models convert at the same time. Voices marked ♪ have a saved sample: tap to hear it free.
+          </Dim>
           {v.dialogueMode ? (
             <View style={{ flexDirection: 'row', marginBottom: 6 }}>
               <Chip label={`Narrator: ${v.voice.label.split(' ')[0]}`} on={target === 'voice'} onPress={() => setTarget('voice')} />
@@ -108,13 +120,13 @@ export function VoicePicker(p: { value: VoiceProfile; onChange: (v: VoiceProfile
           {(s.myVoices || []).length ? <Dim style={{ marginBottom: 6 }}>My voices</Dim> : null}
           <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
             {(s.myVoices || []).map((m) => (
-              <Chip key={m.id} label={m.label} on={cur.id === m.id} onPress={() => pickGemini({ id: m.id, label: m.label, prebuilt: false })} />
+              <Chip key={m.id} label={`${has({ id: m.id, label: m.label, prebuilt: false }) ? '♪ ' : ''}${m.label}`} on={cur.id === m.id} onPress={() => tapGemini({ id: m.id, label: m.label, prebuilt: false })} />
             ))}
           </View>
           <Dim style={{ marginBottom: 6 }}>Standard voices</Dim>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
             {PREBUILT_VOICES.map(([id, d]) => (
-              <Chip key={id} label={`${id} · ${d}`} on={cur.prebuilt && cur.id === id} onPress={() => pickGemini({ id, label: `${id} — ${d}`, prebuilt: true })} />
+              <Chip key={id} label={`${has({ id, label: id, prebuilt: true }) ? '♪ ' : ''}${id} · ${d}`} on={cur.prebuilt && cur.id === id} onPress={() => tapGemini({ id, label: `${id} — ${d}`, prebuilt: true })} />
             ))}
           </View>
           <Dim style={{ marginTop: 6, marginBottom: 6 }}>Delivery</Dim>
@@ -213,7 +225,10 @@ function Row(p: { label: string; hint?: string; children: React.ReactNode }) {
 /** Save a profile back as the default voice settings. */
 export function profileToSettings(s: Settings, v: VoiceProfile): Settings {
   const n: Settings = { ...s, engine: v.engine, style: v.style, languageCode: v.languageCode, narration: v.narration, adaptText: v.adaptText, speechRate: v.rate, dialogueMode: v.dialogueMode, dialogueVoice: v.dialogueVoice };
-  if (v.engine === 'gemini') n.voice = v.voice;
+  if (v.engine === 'gemini') {
+    n.voice = v.voice;
+    if (v.ttsModel) n.ttsModel = v.ttsModel;
+  }
   if (v.engine === 'device') n.deviceVoice = v.voice;
   if (v.engine === 'azure') n.azureVoice = v.voice;
   if (v.engine === 'elevenlabs') n.elevenVoiceId = v.voice.id;

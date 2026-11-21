@@ -371,3 +371,27 @@ export async function keyFor(providerId: string): Promise<string | null> {
   const k = ks.find((x) => x.provider === providerId && !x.disabled);
   return k ? secrets.get(k.id) || null : null;
 }
+
+/** For backups: every key with its secret. */
+export async function exportKeys(): Promise<{ provider: string; models: string[]; disabled?: boolean; secret: string }[]> {
+  const ks = await loadKeys();
+  return ks.map((k) => ({ provider: k.provider, models: k.models, disabled: k.disabled, secret: secrets.get(k.id) || '' })).filter((k) => k.secret);
+}
+
+/** For restores: add keys back without re-checking them online. Skips ones already present. */
+export async function importKeys(list: { provider: string; models: string[]; disabled?: boolean; secret: string }[]): Promise<number> {
+  await loadKeys();
+  const have = new Set([...secrets.values()]);
+  let n = 0;
+  for (const k of list) {
+    if (!k?.secret || have.has(k.secret) || !providerById(k.provider)) continue;
+    const item: AiKey = { id: uid(), provider: k.provider, models: k.models?.length ? k.models : providerById(k.provider)!.prefer, addedAt: Date.now(), disabled: k.disabled };
+    await SecureStore.setItemAsync(`aikey_${item.id}`, k.secret);
+    secrets.set(item.id, k.secret);
+    keys!.push(item);
+    have.add(k.secret);
+    n++;
+  }
+  saveKeys();
+  return n;
+}
